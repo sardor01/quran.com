@@ -29,32 +29,35 @@ go to that address. If you change it, also start the gateway with
 
 ## Private local app (macOS)
 
-A **Quran** app for your Applications folder that runs a production build of this repo, reachable
-only from this machine. Create it once:
+A native **Quran** app for your Applications folder: its own window and Dock icon, showing a
+production build of this repo that only this machine can reach. Create it once (needs the Xcode
+command line tools for `swiftc`):
 
 ```bash
-scripts/local-dev/local-app.sh make-app   # creates ~/Applications/Quran.app
+scripts/local-dev/local-app.sh make-app   # builds ~/Applications/Quran.app from QuranApp.swift
 ```
 
 Then just open **Quran** (Spotlight, Launchpad or `~/Applications`):
 
-- It starts the app and gateway and opens the Quran window (about 3 seconds).
-- If the checked-out commit changed since the last build (e.g. after `git pull`), it rebuilds first
-  and shows a notification (a few minutes).
+- It starts the app and gateway and shows the site in its window (about 3 seconds).
+- If the checked-out commit changed since the last build (e.g. after `git pull`), it rebuilds first,
+  with a message on its loading screen (a few minutes).
 - It never leaves you without a working app: while a merge, rebase or cherry-pick is unfinished (or
   files have conflicts) it skips the update, and if an update fails to build it restores the
-  previous build. Either way it opens the last working version and says so in a notification. A
-  failed commit isn't retried on every launch; the next commit (e.g. your fix) is built as usual.
-- Closing the window (or quitting it) stops everything; nothing keeps running in the background.
+  previous build. Either way it opens the last working version and says so. A failed commit isn't
+  retried on every launch; the next commit (e.g. your fix) is built as usual.
+- Quitting it (or closing its window) stops everything. If it's force quit, the servers notice and
+  stop too; nothing keeps running in the background.
+
+The window uses WebKit (Safari's engine); links to other sites open in your default browser.
+Settings and reading position persist between launches. Everything listens on `127.0.0.1` only (app
+3200, gateway 4100), so other devices on your network can't reach it, and it can run next to the dev
+setup. Logs: `~/Library/Logs/quran-local/app.log`.
 
 The app icon is `scripts/local-dev/app-icon.png`, the logo rendered on Apple's icon grid (824px
-rounded square with a soft shadow on a 1024px canvas). Run `make-app` again after changing it.
-
-The window runs in its own Chrome instance with a separate profile in
-`~/Library/Application Support/QuranLocal/`, so settings and reading position persist between
-launches. It needs Google Chrome installed. Everything listens on `127.0.0.1` only (app 3200,
-gateway 4100, the window's DevTools port 9334), so other devices on your network can't reach it, and
-it can run next to the dev setup. Logs: `~/Library/Logs/quran-local/app.log`.
+rounded square with a soft shadow on a 1024px canvas). Run `make-app` again after changing it or
+`QuranApp.swift`. Running the app binary with `QURAN_SELFTEST=1` plays a surah, minimizes and
+restores the window, prints what the page reports, and quits.
 
 `scripts/local-dev/local-app.sh build` and `start` run the build or the servers by hand.
 

@@ -1,11 +1,12 @@
 #!/bin/bash
 # A private copy of the app on this Mac, opened like a normal app and fully stopped when closed.
 #
-#   scripts/local-dev/local-app.sh make-app   # create ~/Applications/Quran.app (once)
+#   scripts/local-dev/local-app.sh make-app   # build ~/Applications/Quran.app (once)
 #
-# Opening Quran.app runs `run`: it rebuilds if the code changed since the last build, starts the
-# app and gateway on 127.0.0.1 only, and opens the Quran window. Closing the window (or quitting it)
-# stops everything. Ports differ from the dev setup (3100/4000), so both can run at once.
+# Quran.app is a small native app (QuranApp.swift) with its own window and Dock icon. It runs
+# `serve`: rebuild if the code changed since the last build, then the app and gateway on 127.0.0.1
+# only. Quitting the app (or closing its window) stops everything. Ports differ from the dev setup
+# (3100/4000), so both can run at once.
 #
 #   scripts/local-dev/local-app.sh build      # production build only
 #   scripts/local-dev/local-app.sh start      # run app + gateway in the foreground, no window
@@ -18,12 +19,12 @@ REPO_DIR="$PWD"
 
 APP_PORT="${APP_PORT:-3200}"
 GATEWAY_PORT="${GATEWAY_PORT:-4100}"
-DEVTOOLS_PORT="${DEVTOOLS_PORT:-9334}"
 HOST=127.0.0.1
 APP_URL="http://$HOST:$APP_PORT"
 SUPPORT_DIR="$HOME/Library/Application Support/QuranLocal"
 LOG_DIR="$HOME/Library/Logs/quran-local"
-CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+# Shown on the app's loading screen.
+STATUS_FILE="$SUPPORT_DIR/status"
 BUILT_COMMIT_FILE=".next/LOCAL_APP_COMMIT"
 # Outside .next so a failed build attempt is remembered after the previous build is restored.
 FAILED_COMMIT_FILE="$SUPPORT_DIR/failed-build-commit"
@@ -44,15 +45,19 @@ export ALLOWED_ORIGINS="localhost,127.0.0.1"
 
 PIDS=()
 GATEWAY_PID=""
-CHROME_PID=""
 cleanup() {
   for pid in "${PIDS[@]:-}"; do
     [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
   done
 }
 trap cleanup EXIT
+# The app quits by sending SIGTERM: exit so the EXIT trap stops the servers.
+trap 'exit 143' TERM INT
 
+# Show a message on the app's loading screen and as a notification.
 notify() {
+  mkdir -p "$SUPPORT_DIR"
+  echo "$1" >"$STATUS_FILE"
   osascript -e "display notification \"$1\" with title \"Quran\"" >/dev/null 2>&1 || true
 }
 
@@ -134,77 +139,53 @@ build_if_needed() {
   return 1
 }
 
-open_window() {
-  mkdir -p "$SUPPORT_DIR/chrome-profile"
-  # A separate Chrome instance with its own profile, so the launcher can tell when its window is
-  # closed. The profile is kept, so settings and reading position persist between launches.
-  "$CHROME" --user-data-dir="$SUPPORT_DIR/chrome-profile" \
-    --remote-debugging-port="$DEVTOOLS_PORT" --remote-debugging-address=127.0.0.1 \
-    --no-first-run --no-default-browser-check --app="$APP_URL" >/dev/null 2>&1 &
-  CHROME_PID=$!
-  PIDS+=("$CHROME_PID")
-}
-
-has_open_pages() {
-  curl -s -m 2 "http://$HOST:$DEVTOOLS_PORT/json/list" | grep -q '"type": "page"'
-}
-
-run() {
-  mkdir -p "$LOG_DIR"
+# Run by Quran.app. Stops when the app quits (SIGTERM), or if the app disappears without quitting
+# properly (e.g. force quit), so the servers never keep running on their own.
+serve() {
+  local app_pid=$PPID
+  mkdir -p "$LOG_DIR" "$SUPPORT_DIR"
   exec >>"$LOG_DIR/app.log" 2>&1
-  echo "--- $(date) run"
-
-  # Already open: just bring up another window in the running instance.
-  if curl -s -o /dev/null "$APP_URL" && curl -s -o /dev/null "http://$HOST:$DEVTOOLS_PORT/json/version"; then
-    "$CHROME" --user-data-dir="$SUPPORT_DIR/chrome-profile" --app="$APP_URL" >/dev/null 2>&1 &
-    return 0
-  fi
+  echo "--- $(date) serve"
+  rm -f "$STATUS_FILE"
 
   if ! build_if_needed; then
-    notify "Quran failed to build. See ~/Library/Logs/quran-local/app.log"
+    notify "Quran failed to build. Details: ~/Library/Logs/quran-local/app.log"
     return 1
   fi
   start_gateway
   node_modules/.bin/next start -H "$HOST" -p "$APP_PORT" &
-  PIDS+=($!)
-  wait_for_url "$APP_URL/" || {
-    notify "Quran failed to start. See ~/Library/Logs/quran-local/app.log"
-    return 1
-  }
+  local next_pid=$!
+  PIDS+=("$next_pid")
 
-  open_window
-  wait_for_url "http://$HOST:$DEVTOOLS_PORT/json/version" || true
-
-  # Stay until the window is closed (no pages left) or the Chrome instance quits.
-  while kill -0 "$CHROME_PID" 2>/dev/null && has_open_pages; do
-    sleep 2
+  while kill -0 "$app_pid" 2>/dev/null && kill -0 "$next_pid" 2>/dev/null; do
+    sleep 1
   done
-  echo "--- $(date) window closed, stopping"
+  echo "--- $(date) stopping"
 }
 
 make_app() {
   local app="$HOME/Applications/Quran.app"
-  rm -rf "$app"
-  mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+  local build_dir
+  build_dir="$(mktemp -d)"
 
-  cat >"$app/Contents/MacOS/Quran" <<EOF
-#!/bin/bash
-exec /bin/bash "$REPO_DIR/scripts/local-dev/local-app.sh" run
-EOF
-  chmod +x "$app/Contents/MacOS/Quran"
+  # Compile first, so a failed compile leaves the existing app untouched.
+  swiftc -swift-version 5 -O -o "$build_dir/Quran" scripts/local-dev/QuranApp.swift \
+    -framework Cocoa -framework WebKit
 
   # Icon: the app's logo as a rounded macOS-style tile (1024px, rendered from
   # public/images/logo/Logo.svg on Apple's icon grid: 824px rounded square, soft shadow).
-  local icon=scripts/local-dev/app-icon.png iconset
-  iconset="$(mktemp -d)/Quran.iconset"
+  local icon=scripts/local-dev/app-icon.png iconset="$build_dir/Quran.iconset"
   mkdir -p "$iconset"
   for size in 16 32 128 256 512; do
     sips -z "$size" "$size" "$icon" --out "$iconset/icon_${size}x${size}.png" >/dev/null
     sips -z $((size * 2)) $((size * 2)) "$icon" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
   done
+
+  rm -rf "$app"
+  mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+  mv "$build_dir/Quran" "$app/Contents/MacOS/Quran"
   iconutil -c icns "$iconset" -o "$app/Contents/Resources/Quran.icns"
 
-  # LSUIElement: the launcher has no Dock icon of its own; the Quran window is what you see.
   cat >"$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -216,11 +197,15 @@ EOF
   <key>CFBundleExecutable</key><string>Quran</string>
   <key>CFBundleIconFile</key><string>Quran</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>LSUIElement</key><true/>
+  <key>CFBundleShortVersionString</key><string>2.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppTransportSecurity</key>
+  <dict><key>NSAllowsLocalNetworking</key><true/></dict>
+  <key>QuranLauncher</key><string>$REPO_DIR/scripts/local-dev/local-app.sh</string>
 </dict>
 </plist>
 EOF
+  rm -rf "$build_dir"
   touch "$app"
   # Make Finder, Dock and Spotlight pick up the new icon instead of a cached one.
   /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app" >/dev/null 2>&1 || true
@@ -234,10 +219,10 @@ case "${1:-}" in
     start_gateway
     node_modules/.bin/next start -H "$HOST" -p "$APP_PORT"
     ;;
-  run) run ;;
+  serve) serve ;;
   make-app) make_app ;;
   *)
-    echo "usage: $0 make-app|run|build|start" >&2
+    echo "usage: $0 make-app|serve|build|start" >&2
     exit 2
     ;;
 esac
