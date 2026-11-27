@@ -27,6 +27,26 @@ The app must run on the port in `NEXT_PUBLIC_VERCEL_URL` (3100 here), because se
 go to that address. If you change it, also start the gateway with
 `APP_ORIGIN=http://localhost:<port>` so recitation audio URLs point at the right place.
 
+## Private local app (macOS)
+
+Run a production build in the background, reachable only from this machine, without keeping the dev
+server open. It uses ports 3200 (app) and 4100 (gateway), so it can run next to the dev setup.
+
+```bash
+scripts/local-dev/local-app.sh build      # once, and again after pulling changes
+scripts/local-dev/local-app.sh install    # login service: starts now and at every login
+```
+
+Then open <http://127.0.0.1:3200> in Chrome and choose **⋮ → Cast, save, and share → Install page as
+app…** to get its own window and Dock icon.
+
+- `scripts/local-dev/local-app.sh start` runs it in the foreground instead (what the service runs).
+- After a new `build`, restart the service: `launchctl kickstart -k gui/$(id -u)/local.quran-app`.
+- `scripts/local-dev/local-app.sh uninstall` removes the login service.
+- Logs: `~/Library/Logs/quran-local/`.
+
+Both servers listen on `127.0.0.1` only, so other devices on your network can't reach them.
+
 ## How it works
 
 The app sends API calls to its own `/api/proxy/<service>/...` route, which forwards them to

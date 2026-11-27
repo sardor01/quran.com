@@ -26,6 +26,8 @@ const https = require('https');
 const path = require('path');
 
 const PORT = Number(process.env.PORT) || 4000;
+// Set HOST=127.0.0.1 to accept connections from this machine only (default: all interfaces).
+const { HOST } = process.env;
 const APP_ORIGIN = process.env.APP_ORIGIN || 'http://localhost:3100';
 const UPSTREAM = 'api.qurancdn.com';
 const CACHE_DIR = path.join(__dirname, '.audio-cache');
@@ -476,4 +478,6 @@ http
 
     sendJson(res, 404, { error: `Not available via local gateway: ${req.url}` });
   })
-  .listen(PORT, () => console.log(`qurancdn gateway listening on http://localhost:${PORT}`));
+  .listen(PORT, HOST, () =>
+    console.log(`qurancdn gateway listening on http://${HOST || 'localhost'}:${PORT}`),
+  );
