@@ -20,6 +20,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   var isQuitting = false
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    // Draw the Dock tile from the bundled icon ourselves, so it shows the Quran logo while open even
+    // if the Dock has an older icon for this app cached.
+    if let iconURL = Bundle.main.url(forResource: "Quran", withExtension: "icns"),
+      let icon = NSImage(contentsOf: iconURL)
+    {
+      NSApp.applicationIconImage = icon
+    }
     buildMenu()
 
     let config = WKWebViewConfiguration()
