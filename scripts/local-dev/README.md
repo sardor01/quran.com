@@ -29,23 +29,34 @@ go to that address. If you change it, also start the gateway with
 
 ## Private local app (macOS)
 
-Run a production build in the background, reachable only from this machine, without keeping the dev
-server open. It uses ports 3200 (app) and 4100 (gateway), so it can run next to the dev setup.
+A **Quran** app for your Applications folder that runs a production build of this repo, reachable
+only from this machine. Create it once:
 
 ```bash
-scripts/local-dev/local-app.sh build      # once, and again after pulling changes
-scripts/local-dev/local-app.sh install    # login service: starts now and at every login
+scripts/local-dev/local-app.sh make-app   # creates ~/Applications/Quran.app
 ```
 
-Then open <http://127.0.0.1:3200> in Chrome and choose **⋮ → Cast, save, and share → Install page as
-app…** to get its own window and Dock icon.
+Then just open **Quran** (Spotlight, Launchpad or `~/Applications`):
 
-- `scripts/local-dev/local-app.sh start` runs it in the foreground instead (what the service runs).
-- After a new `build`, restart the service: `launchctl kickstart -k gui/$(id -u)/local.quran-app`.
-- `scripts/local-dev/local-app.sh uninstall` removes the login service.
-- Logs: `~/Library/Logs/quran-local/`.
+- It starts the app and gateway and opens the Quran window (about 3 seconds).
+- If the checked-out commit changed since the last build (e.g. after `git pull`), it rebuilds first
+  and shows a notification (a few minutes).
+- It never leaves you without a working app: while a merge, rebase or cherry-pick is unfinished (or
+  files have conflicts) it skips the update, and if an update fails to build it restores the
+  previous build. Either way it opens the last working version and says so in a notification. A
+  failed commit isn't retried on every launch; the next commit (e.g. your fix) is built as usual.
+- Closing the window (or quitting it) stops everything; nothing keeps running in the background.
 
-Both servers listen on `127.0.0.1` only, so other devices on your network can't reach them.
+The app icon is `scripts/local-dev/app-icon.png`, the logo rendered on Apple's icon grid (824px
+rounded square with a soft shadow on a 1024px canvas). Run `make-app` again after changing it.
+
+The window runs in its own Chrome instance with a separate profile in
+`~/Library/Application Support/QuranLocal/`, so settings and reading position persist between
+launches. It needs Google Chrome installed. Everything listens on `127.0.0.1` only (app 3200,
+gateway 4100, the window's DevTools port 9334), so other devices on your network can't reach it, and
+it can run next to the dev setup. Logs: `~/Library/Logs/quran-local/app.log`.
+
+`scripts/local-dev/local-app.sh build` and `start` run the build or the servers by hand.
 
 ## How it works
 
