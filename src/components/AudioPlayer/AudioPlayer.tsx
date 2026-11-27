@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic';
 import { useSelector as useReduxSelector } from 'react-redux';
 
 import styles from './AudioPlayer.module.scss';
+import usePauseAudioWhenTabHidden from './hooks/usePauseAudioWhenTabHidden';
 
 import { useOnboarding } from '@/components/Onboarding/OnboardingProvider';
 import Spinner from '@/dls/Spinner/Spinner';
@@ -57,6 +58,7 @@ const AudioPlayer = () => {
   const isVisible = useSelector(audioService, (state) => state.matches('VISIBLE'));
   const isStudyModeOpen = useReduxSelector(selectStudyModeIsOpen);
   const { isActive } = useOnboarding();
+  usePauseAudioWhenTabHidden(audioService);
 
   useEffect(() => {
     window.audioPlayerEl = audioPlayerRef.current;

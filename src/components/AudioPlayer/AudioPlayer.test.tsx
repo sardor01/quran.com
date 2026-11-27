@@ -32,6 +32,11 @@ vi.mock('@/utils/datetime', () => ({
   milliSecondsToSeconds: (ms: number) => ms / 1000,
 }));
 
+// Covered by its own tests; needs a full machine service (subscribe) that these mocks don't provide.
+vi.mock('./hooks/usePauseAudioWhenTabHidden', () => ({
+  default: () => {},
+}));
+
 interface MockSnapshot {
   matches: (stateValue: string) => boolean;
   context?: {
