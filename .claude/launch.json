@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "quran-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "source ~/.nvm/nvm.sh && nvm use 20 >/dev/null && (lsof -tiTCP:4000 -sTCP:LISTEN >/dev/null || node scripts/local-dev/qurancdn-gateway.js &) && yarn --ignore-engines dev -p 3100"
+      ],
+      "port": 3100,
+      "autoPort": false
+    }
+  ]
+}
