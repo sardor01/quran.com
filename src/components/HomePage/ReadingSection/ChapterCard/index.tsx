@@ -8,7 +8,6 @@ import Card from '@/components/HomePage/Card';
 import DataContext from '@/contexts/DataContext';
 import Button, { ButtonSize } from '@/dls/Button/Button';
 import IconContainer, { IconSize } from '@/dls/IconContainer/IconContainer';
-import Link, { LinkVariant } from '@/dls/Link/Link';
 import ArrowIcon from '@/icons/arrow.svg';
 import { getChapterData } from '@/utils/chapter';
 import { logButtonClick } from '@/utils/eventLogger';
@@ -62,26 +61,22 @@ const ChapterCard: React.FC<Props> = ({
               {isMobile() ? `${chapterData.translatedName}` : `(${chapterData.translatedName})`}
             </span>
           </div>
+          {/* The whole card is already a link to `link` (see Card), so these must not render their own
+              <a>: nested anchors are invalid HTML and the browser splits them, breaking hydration. */}
           {isContinueReading ? (
-            <Link href={link} variant={LinkVariant.Primary} onClick={onContinueReadingClicked}>
-              <div className={styles.continueReading}>
-                <span>{t('common:verse')}</span>
-                <span>{toLocalizedNumber(verseNumber, lang)}</span>
-                <IconContainer
-                  size={IconSize.Xsmall}
-                  icon={<ArrowIcon />}
-                  shouldForceSetColors={false}
-                  className={styles.continueReadingArrowIcon}
-                />
-              </div>
-            </Link>
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+            <div className={styles.continueReading} onClick={onContinueReadingClicked}>
+              <span>{t('common:verse')}</span>
+              <span>{toLocalizedNumber(verseNumber, lang)}</span>
+              <IconContainer
+                size={IconSize.Xsmall}
+                icon={<ArrowIcon />}
+                shouldForceSetColors={false}
+                className={styles.continueReadingArrowIcon}
+              />
+            </div>
           ) : (
-            <Button
-              size={ButtonSize.Small}
-              href={link}
-              onClick={onBeginClicked}
-              className={styles.beginButton}
-            >
+            <Button size={ButtonSize.Small} onClick={onBeginClicked} className={styles.beginButton}>
               {t('begin')}
             </Button>
           )}
