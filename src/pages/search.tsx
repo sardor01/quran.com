@@ -48,20 +48,11 @@ const SearchPage: NextPage<SearchPageProps> = (): JSX.Element => {
   const { t, lang } = useTranslation('common');
   const selectedTranslations = useSelector(selectSelectedTranslations, areArraysEqual) as string[];
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      return params.get(QueryParam.QUERY) || params.get(QueryParam.QUERY_OLD) || '';
-    }
-    return '';
-  });
-  const [currentPage, setCurrentPage] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      return Number(params.get(QueryParam.PAGE)) || 1;
-    }
-    return 1;
-  });
+  // This page is statically generated, so the server always renders it without a query. Start from the
+  // same defaults on the client (reading window.location here caused a hydration mismatch) and let the
+  // effect below pick up the query/page from the router once it is ready.
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Handle URL changes (both initial load and navigation)
   useEffect(() => {
