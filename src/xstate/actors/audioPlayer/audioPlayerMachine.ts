@@ -21,6 +21,7 @@ import {
   getMediaSessionMetaData,
   getAyahNumberByTimestamp,
 } from './audioPlayerMachineHelper';
+import { MEDIA_SESSION_PAUSE_EVENT, shouldToggleForMediaSessionAction } from './mediaSession';
 import AudioPlayerContext from './types/AudioPlayerContext';
 import AudioPlayerEventType from './types/AudioPlayerEventType';
 
@@ -1108,8 +1109,23 @@ export const audioPlayerMachine =
           }
 
           const actionHandlers = [
-            ['play', () => callback('TOGGLE')],
-            ['pause', () => callback('TOGGLE')],
+            [
+              'play',
+              () => {
+                if (shouldToggleForMediaSessionAction('play', context.audioPlayer)) {
+                  callback('TOGGLE');
+                }
+              },
+            ],
+            [
+              'pause',
+              () => {
+                window.dispatchEvent(new Event(MEDIA_SESSION_PAUSE_EVENT));
+                if (shouldToggleForMediaSessionAction('pause', context.audioPlayer)) {
+                  callback('TOGGLE');
+                }
+              },
+            ],
             [
               'previoustrack',
               () => {

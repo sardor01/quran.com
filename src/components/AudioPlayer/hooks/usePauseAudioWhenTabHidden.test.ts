@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import usePauseAudioWhenTabHidden from './usePauseAudioWhenTabHidden';
 
+import { MEDIA_SESSION_PAUSE_EVENT } from 'src/xstate/actors/audioPlayer/mediaSession';
+
 vi.mock('@/utils/eventLogger', () => ({ logEvent: vi.fn() }));
 
 const PLAYING_ACTIVE = 'VISIBLE.AUDIO_PLAYER_INITIATED.PLAYING.ACTIVE';
@@ -105,6 +107,26 @@ describe('usePauseAudioWhenTabHidden', () => {
     service.send.mockClear();
     setVisibility('visible');
     expect(service.send).not.toHaveBeenCalled();
+  });
+
+  it('does not resume if a media "pause" command arrived while the tab was hidden', () => {
+    const { service, setState } = createFakeService(PLAYING_ACTIVE);
+    renderWith(service);
+
+    setVisibility('hidden');
+    setState(PAUSED_ACTIVE);
+    window.dispatchEvent(new Event(MEDIA_SESSION_PAUSE_EVENT)); // e.g. AirPods taken out
+    service.send.mockClear();
+    setVisibility('visible');
+    expect(service.send).not.toHaveBeenCalled();
+
+    // The next time the tab is hidden, auto-pause/resume works again.
+    setState(PLAYING_ACTIVE);
+    setVisibility('hidden');
+    setState(PAUSED_ACTIVE);
+    service.send.mockClear();
+    setVisibility('visible');
+    expect(service.send).toHaveBeenCalledWith('TOGGLE');
   });
 
   it('pauses once a verse-repeat delay ends while the tab is hidden', () => {

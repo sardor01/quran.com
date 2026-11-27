@@ -4,6 +4,7 @@ import { InterpreterFrom } from 'xstate';
 
 import { logEvent } from '@/utils/eventLogger';
 import { audioPlayerMachine } from 'src/xstate/actors/audioPlayer/audioPlayerMachine';
+import { MEDIA_SESSION_PAUSE_EVENT } from 'src/xstate/actors/audioPlayer/mediaSession';
 
 type AudioService = InterpreterFrom<typeof audioPlayerMachine>;
 
@@ -51,7 +52,8 @@ const resumeAutoPausedPlayback = (audioService: AudioService) => {
  * it when the tab is visible again, but only if it was this hook that paused it.
  *
  * Only the moment the tab becomes hidden counts: if the user starts playback again while the tab
- * is hidden (e.g. with the OS media controls), it keeps playing.
+ * is hidden (e.g. with the OS media controls), it keeps playing. And if they send a pause command
+ * while away (e.g. taking AirPods out), it isn't resumed on return.
  *
  * @param {AudioService} audioService the audio player machine service
  */
@@ -59,15 +61,20 @@ const usePauseAudioWhenTabHidden = (audioService: AudioService) => {
   useEffect(() => {
     let wasAutoPaused = false;
     let shouldPauseWhenPlaybackStarts = false;
+    let wasPauseRequestedWhileHidden = false;
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
+        wasPauseRequestedWhileHidden = false;
         ({ wasAutoPaused, shouldPauseWhenPlaybackStarts } = onTabHidden(audioService));
         return;
       }
       shouldPauseWhenPlaybackStarts = false;
-      if (wasAutoPaused) resumeAutoPausedPlayback(audioService);
+      if (wasAutoPaused && !wasPauseRequestedWhileHidden) resumeAutoPausedPlayback(audioService);
       wasAutoPaused = false;
+    };
+    const onMediaSessionPause = () => {
+      wasPauseRequestedWhileHidden = true;
     };
 
     const subscription = audioService.subscribe((state) => {
@@ -79,8 +86,10 @@ const usePauseAudioWhenTabHidden = (audioService: AudioService) => {
     });
 
     document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener(MEDIA_SESSION_PAUSE_EVENT, onMediaSessionPause);
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener(MEDIA_SESSION_PAUSE_EVENT, onMediaSessionPause);
       subscription.unsubscribe();
     };
   }, [audioService]);
